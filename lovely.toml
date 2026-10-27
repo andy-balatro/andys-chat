@@ -1,0 +1,27 @@
+[manifest]
+version = "0.1.0"
+priority = 0
+
+# Append the mod to the end of the game's main.lua. By then every game
+# function is defined, so the mod can wrap them.
+# andys_link.lua goes first (chat.lua uses AndysLink), then chat.lua, which
+# defines the AndysChat table settings.lua uses.
+# left-tags/ is a copy of the Left Tags mod, which moves skip tags out from
+# under the chat. It skips itself if Left Tags is installed too.
+[[patches]]
+[patches.copy]
+target = "main.lua"
+position = "append"
+sources = ["andys_link.lua", "chat.lua", "settings.lua", "left-tags/left_tags.lua", "left-tags/settings.lua"]
+
+# Add the mod's tabs to the settings menu, the way Cartomancer adds its own.
+[[patches]]
+[patches.pattern]
+target = "functions/UI_definitions.lua"
+match_indent = true
+position = "before"
+pattern = '''local t = create_UIBox_generic_options({back_func = 'options',contents = {create_tabs('''
+payload = '''
+if AndysChat then tabs[#tabs+1] = AndysChat.settings_tab() end
+if LeftTags and LeftTags.add_settings_tab then LeftTags.add_settings_tab(tabs) end
+'''
