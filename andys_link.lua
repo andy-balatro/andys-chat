@@ -6,9 +6,8 @@
 --
 -- Linking works like a TV app's sign-in: the server hands out a code, the
 -- streamer types it on the site, and asking every few seconds gets the game's
--- token once they have. Requests go over HTTPS, with the "https" module
--- Balatro ships, on a background thread so the game never waits on the
--- network.
+-- token once they have. Requests go over HTTPS, on a background thread so
+-- the game never waits on the network.
 if not AndysLink then
   -- Set ANDYS_MODS_URL to try the mods against another server.
   local SERVER = os.getenv("ANDYS_MODS_URL") or "https://bot.andy-balatro.com"
@@ -101,8 +100,91 @@ if not AndysLink then
 
   -- Network -------------------------------------------------------------------
 
-  local NETWORK_THREAD = [==[
+  -- A chunk that returns a module with https.request(url, options), for
+  -- background threads to load with loadstring. It's the "https" module
+  -- Balatro ships on Windows. The Mac and Linux builds don't have it, so there
+  -- it's libcurl, which they come with, through LuaJIT's FFI. Errors if
+  -- neither loads.
+  AndysLink.HTTPS = [==[
   local has_https, https = pcall(require, "https")
+  if has_https then return https end
+
+  local ffi = require("ffi")
+  local loaded, curl
+  for _, name in ipairs({ "libcurl", "libcurl.4.dylib", "/usr/lib/libcurl.4.dylib", "libcurl.so.4" }) do
+    loaded, curl = pcall(ffi.load, name)
+    if loaded then break end
+  end
+  if not loaded then error("no https module (" .. tostring(https) .. ") and no libcurl (" .. tostring(curl) .. ")") end
+
+  ffi.cdef([[
+    typedef void CURL;
+    struct curl_slist;
+    typedef size_t (*andys_curl_write)(char *data, size_t size, size_t count, void *user);
+    CURL *curl_easy_init(void);
+    int curl_easy_setopt(CURL *curl, int option, ...);
+    int curl_easy_perform(CURL *curl);
+    int curl_easy_getinfo(CURL *curl, int info, ...);
+    void curl_easy_cleanup(CURL *curl);
+    const char *curl_easy_strerror(int code);
+    struct curl_slist *curl_slist_append(struct curl_slist *list, const char *s);
+    void curl_slist_free_all(struct curl_slist *list);
+  ]])
+
+  -- Option and info numbers from curl.h.
+  local URL, WRITEFUNCTION, HTTPHEADER, CUSTOMREQUEST = 10002, 20011, 10023, 10036
+  local POSTFIELDS, POSTFIELDSIZE, ACCEPT_ENCODING = 10015, 60, 10102
+  local FOLLOWLOCATION, NOSIGNAL, CONNECTTIMEOUT, TIMEOUT = 52, 99, 78, 13
+  local RESPONSE_CODE = 2097154
+
+  -- Numbers passed through setopt's "..." have to be C longs.
+  local function long(n) return ffi.cast("long", n) end
+
+  -- Answers like the https module: the status code and body, or 0 and why.
+  local function request(url, options)
+    options = options or {}
+    local handle = curl.curl_easy_init()
+    if handle == nil then return 0, "curl_easy_init failed" end
+    local chunks = {}
+    local write = ffi.cast("andys_curl_write", function(data, size, count)
+      local n = tonumber(size * count)
+      chunks[#chunks + 1] = ffi.string(data, n)
+      return n
+    end)
+    local headers = nil
+    for key, value in pairs(options.headers or {}) do
+      headers = curl.curl_slist_append(headers, key .. ": " .. tostring(value))
+    end
+    curl.curl_easy_setopt(handle, URL, url)
+    curl.curl_easy_setopt(handle, WRITEFUNCTION, write)
+    curl.curl_easy_setopt(handle, FOLLOWLOCATION, long(1))
+    curl.curl_easy_setopt(handle, NOSIGNAL, long(1))
+    curl.curl_easy_setopt(handle, ACCEPT_ENCODING, "")
+    curl.curl_easy_setopt(handle, CONNECTTIMEOUT, long(15))
+    curl.curl_easy_setopt(handle, TIMEOUT, long(60))
+    if headers ~= nil then curl.curl_easy_setopt(handle, HTTPHEADER, headers) end
+    if options.data then
+      curl.curl_easy_setopt(handle, POSTFIELDSIZE, long(#options.data))
+      curl.curl_easy_setopt(handle, POSTFIELDS, options.data)
+    end
+    if options.method then curl.curl_easy_setopt(handle, CUSTOMREQUEST, options.method) end
+    local result = curl.curl_easy_perform(handle)
+    local status = ffi.new("long[1]")
+    if result == 0 then curl.curl_easy_getinfo(handle, RESPONSE_CODE, status) end
+    curl.curl_easy_cleanup(handle)
+    curl.curl_slist_free_all(headers)
+    write:free()
+    if result ~= 0 then return 0, ffi.string(curl.curl_easy_strerror(result)) end
+    return tonumber(status[0]), table.concat(chunks)
+  end
+  -- LuaJIT can't call back into Lua (the write function) from compiled code.
+  jit.off(request)
+
+  return { request = request }
+  ]==]
+
+  local NETWORK_THREAD = [==[
+  local has_https, https = pcall(loadstring((...)))
   local requests = love.thread.getChannel("andys_link_requests")
   local responses = love.thread.getChannel("andys_link_responses")
 
@@ -115,7 +197,7 @@ if not AndysLink then
       local ok, c, b = pcall(https.request, request.url, { method = "POST", headers = headers, data = request.body })
       if ok then code, body = c, b else code, body = 0, tostring(c) end
     else
-      code, body = 0, "no https module: " .. tostring(https)
+      code, body = 0, tostring(https)
     end
     responses:push({ id = request.id, code = code or 0, body = body or "" })
   end
@@ -125,7 +207,7 @@ if not AndysLink then
   local responses = love.thread.getChannel("andys_link_responses")
   -- Kept referenced so the thread is never garbage collected.
   AndysLink.thread = love.thread.newThread(NETWORK_THREAD)
-  AndysLink.thread:start()
+  AndysLink.thread:start(AndysLink.HTTPS)
 
   local callbacks, next_id = {}, 1
 

@@ -277,17 +277,17 @@ return function(s)
 end
 ]==]
 
--- Downloads emote images one at a time, off the main thread. "https" is the
--- module Balatro ships for its own requests. Ids starting with "emoji:" are
--- Twemoji images of Unicode emoji, "ffz:", "bttv:" and "7tv:" are
--- FrankerFaceZ, BetterTTV and 7TV emotes, "cheer:" are cheermotes, the rest
--- are Twitch emotes. "sets:<channel user ID>" asks for the names of the
--- FrankerFaceZ, BetterTTV and 7TV emotes usable in that channel instead.
+-- Downloads emote images one at a time, off the main thread, with
+-- AndysLink.HTTPS. Ids starting with "emoji:" are Twemoji images of Unicode
+-- emoji, "ffz:", "bttv:" and "7tv:" are FrankerFaceZ, BetterTTV and 7TV
+-- emotes, "cheer:" are cheermotes, the rest are Twitch emotes.
+-- "sets:<channel user ID>" asks for the names of the FrankerFaceZ, BetterTTV
+-- and 7TV emotes usable in that channel instead.
 local EMOTE_THREAD = [==[
-local json_decoder = ...
+local json_decoder, https_source = ...
 local decode_json = loadstring(json_decoder)()
 -- Without it every emote fails, and chat shows their names instead.
-local has_https, https = pcall(require, "https")
+local has_https, https = pcall(loadstring(https_source))
 local bit = require("bit")
 require("love.image")
 require("love.filesystem")
@@ -597,7 +597,9 @@ end
 AndysChat.thread = love.thread.newThread(CHAT_THREAD)
 AndysChat.thread:start()
 AndysChat.emote_thread = love.thread.newThread(EMOTE_THREAD)
-AndysChat.emote_thread:start(JSON_DECODER)
+-- An older Progress Tracker's andys_link.lua, loaded first, has no
+-- AndysLink.HTTPS. Then it's the "https" module only, as that copy uses.
+AndysChat.emote_thread:start(JSON_DECODER, AndysLink.HTTPS or 'return require("https")')
 
 -- The channel typed in the settings, or else the linked account's.
 local function wanted_channel()
