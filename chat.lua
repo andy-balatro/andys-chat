@@ -1327,12 +1327,16 @@ function ChatLog:draw()
   love.graphics.pop()
 end
 
--- The panel covers the deck's spot and the letterbox margin right of it,
--- from the bottom of the screen up to just under the consumables at its
+-- In a run the panel covers the deck's spot and the letterbox margin right of
+-- it, from the bottom of the screen up to just under the consumables at its
 -- tallest. The height setting makes it shorter.
+-- On the main menu it's as wide, clear of the logo, but sits above the menu's
+-- buttons, as the language and Discord ones reach the screen's right side. It
+-- has no deck button there: the chat takes that space, keeping it as tall.
 -- In tiles, from the room's left edge: the hand ends at 17.15.
 local PANEL_LEFT = 17.45
 local TALLEST_CHAT = 6.6
+local DECK_BUTTON_SPACE = 0.58
 local deck_label = { text = "" }
 
 local function update_deck_label()
@@ -1341,11 +1345,40 @@ local function update_deck_label()
   end
 end
 
+local function create_deck_button(inner_width)
+  return {
+    n = G.UIT.R,
+    config = {
+      align = "cm",
+      minw = inner_width,
+      -- Shrinks long deck names instead of widening the panel.
+      maxw = inner_width - 0.2,
+      minh = 0.5,
+      r = 0.1,
+      colour = G.C.BLUE,
+      id = "andys_chat_deck_button",
+      button = "deck_info",
+      hover = true,
+      shadow = true,
+    },
+    nodes = {
+      {
+        n = G.UIT.T,
+        config = { ref_table = deck_label, ref_value = "text", scale = 0.4, colour = G.C.UI.TEXT_LIGHT, shadow = true },
+      },
+    },
+  }
+end
+
 local function create_chat_panel()
   update_deck_label()
+  local in_run = G.STAGE == G.STAGES.RUN
   -- G.ROOM_ORIG.x is the width of the letterbox margins.
   local right = G.TILE_W + G.ROOM_ORIG.x - 0.12
   local inner_width = right - PANEL_LEFT - 0.16
+  local chat_height = TALLEST_CHAT * AndysChat.settings.height / 100 + (in_run and 0 or DECK_BUTTON_SPACE)
+  -- Offset from the room's bottom edge.
+  local bottom = in_run and 0.3 or G.MAIN_MENU_UI.T.y - G.TILE_H
   return UIBox({
     definition = {
       n = G.UIT.ROOT,
@@ -1362,34 +1395,13 @@ local function create_chat_panel()
           n = G.UIT.R,
           config = { align = "cm", padding = 0.08, r = 0.1, colour = G.C.DYN_UI.BOSS_DARK },
           nodes = {
-            { n = G.UIT.O, config = { object = ChatLog(inner_width - 0.16, TALLEST_CHAT * AndysChat.settings.height / 100) } },
+            { n = G.UIT.O, config = { object = ChatLog(inner_width - 0.16, chat_height) } },
           },
         },
-        {
-          n = G.UIT.R,
-          config = {
-            align = "cm",
-            minw = inner_width,
-            -- Shrinks long deck names instead of widening the panel.
-            maxw = inner_width - 0.2,
-            minh = 0.5,
-            r = 0.1,
-            colour = G.C.BLUE,
-            id = "andys_chat_deck_button",
-            button = "deck_info",
-            hover = true,
-            shadow = true,
-          },
-          nodes = {
-            {
-              n = G.UIT.T,
-              config = { ref_table = deck_label, ref_value = "text", scale = 0.4, colour = G.C.UI.TEXT_LIGHT, shadow = true },
-            },
-          },
-        },
+        in_run and create_deck_button(inner_width) or nil,
       },
     },
-    config = { align = "bri", offset = { x = right - G.TILE_W, y = 0.3 }, major = G.ROOM_ATTACH },
+    config = { align = "bri", offset = { x = right - G.TILE_W, y = bottom }, major = G.ROOM_ATTACH },
   })
 end
 
@@ -1405,9 +1417,16 @@ end
 -- The height the panel was made for, so a new setting rebuilds it.
 local panel_height = nil
 
+-- A run once its deck exists, or the main menu once its buttons are up. Between
+-- leaving one and starting the next there's nowhere for the panel to stay.
+local function has_panel_spot()
+  if G.STAGE == G.STAGES.RUN then return G.deck ~= nil end
+  return G.STAGE == G.STAGES.MAIN_MENU and G.MAIN_MENU_UI ~= nil
+end
+
 local function show_chat_panel()
-  if AndysChat.panel or G.STAGE ~= G.STAGES.RUN or not G.deck then return end
-  G.deck.states.visible = false
+  if AndysChat.panel or not has_panel_spot() then return end
+  if G.deck then G.deck.states.visible = false end
   AndysChat.panel = create_chat_panel()
   panel_height = AndysChat.settings.height
   dock_saturn(AndysChat.panel)
@@ -1427,7 +1446,14 @@ function Game:start_run(args)
   if AndysChat.visible then show_chat_panel() end
 end
 
--- Leaving a run removes every UIBox it created, the panel included.
+-- The menu's title plays first, then this brings up its buttons.
+local set_main_menu_UI_ref = set_main_menu_UI
+function set_main_menu_UI(...)
+  set_main_menu_UI_ref(...)
+  if AndysChat.visible then show_chat_panel() end
+end
+
+-- Leaving a run or the menu removes every UIBox it created, the panel included.
 local delete_run_ref = Game.delete_run
 function Game:delete_run(...)
   AndysChat.panel = nil
