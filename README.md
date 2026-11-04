@@ -1,6 +1,6 @@
 # Andy's Chat
 
-A [Lovely](https://github.com/ethangreen-dev/lovely-injector) mod that shows your Twitch chat in Balatro, in the bottom-right corner where the deck sits. It's the chat [andy_balatro](https://twitch.tv/andy_balatro) streams with.
+A [Lovely](https://github.com/ethangreen-dev/lovely-injector) mod that shows your Twitch chat in Balatro: on the main menu, and during a run in the bottom-right corner where the deck sits. It's the chat [andy_balatro](https://twitch.tv/andy_balatro) streams with.
 
 - **Every emote**: Twitch, [FrankerFaceZ](https://www.frankerfacez.com), [BetterTTV](https://betterttv.com) and [7TV](https://7tv.app) emotes (animated and zero-width ones included), Twitch's cheermotes (`Cheer100` and so on; a channel's custom ones stay text) and Unicode emoji, drawn with [Twemoji](https://github.com/jdecked/twemoji). FrankerFaceZ, BetterTTV and 7TV emotes are the global ones plus the channel's.
 - **Events**: subs, gifted subs, raids, watch streaks, announcements, cheers and first messages show with a coloured bar and a line saying what happened, above the viewer's message.
@@ -10,7 +10,7 @@ A [Lovely](https://github.com/ethangreen-dev/lovely-injector) mod that shows you
 
 Chat is read anonymously, so it works without signing in to anything. Type your channel in the **Chat** tab of the game's settings (Options → Settings).
 
-The deck still works under the panel: the button at the bottom shows the deck's name and how many cards are left, and opens the deck view. **F7** hides the chat and brings the normal deck back (and shows the chat again), **F8** clears it. In the Chat tab you can change both keys (click a shortcut, press the keys, and let go; Esc clears it) and how tall the panel is. It's made for a 16:9 window. In narrower ones the chat gets cut off at the screen's edge.
+On the main menu the panel sits above the language button. In a run the deck still works under it: the button at the bottom shows the deck's name and how many cards are left, and opens the deck view. **F7** hides the chat and brings the normal deck back (and shows the chat again), **F8** clears it. In the Chat tab you can change both keys (click a shortcut, press the keys, and let go; Esc clears it) and how tall the panel is. It's made for a 16:9 window. In narrower ones the chat gets cut off at the screen's edge.
 
 The chat covers the right margin, where the game stacks skip tags, so the mod moves them to the left margin. That's [Left Tags](https://github.com/andy-balatro/Left-Tags), built in, with its own **Left Tags** tab: runs of the same tag collapse into one with a count, and **F6** turns that off and on. Installing Left Tags as well is fine.
 
