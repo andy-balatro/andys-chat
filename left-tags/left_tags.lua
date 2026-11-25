@@ -23,17 +23,18 @@ if not LeftTags then
     return a and b and a.key == b.key and (a.ability or {}).orbital_hand == (b.ability or {}).orbital_hand
   end
 
-  -- The game hides a tag while it's being used, then removes it. Only boxes hidden here are
-  -- shown again, so a tag that's being used stays hidden.
+  local function skip_draw() end
+
+  -- A collapsed tag skips drawing rather than turning states.visible off, which the game and
+  -- other mods set too: the game hides a tag while it's being used, and Cartomancer shows all of
+  -- them again when a saved run loads. Not being drawn, it can't be hovered either.
   local function set_shown(box, shown)
     if shown then
-      if box.left_tags_hidden then
-        box.states.visible = true
-        box.left_tags_hidden = nil
-      end
-    elseif box.states.visible then
-      box.states.visible = false
+      box.left_tags_hidden = nil
+      box.draw = nil
+    else
       box.left_tags_hidden = true
+      box.draw = skip_draw
     end
   end
 
